@@ -1,0 +1,36 @@
+tasks:
+  - name: "daily-code-review"
+    description: "Daily automated code review"
+    schedule: "0 9 * * *"  # Daily at 9 AM UTC
+    prompt: "Review the recent commits in this repository and provide suggestions for improvements. Focus on code quality, security, and performance."
+    output:
+      type: "yaml"
+      path: "reports/daily-reviews"
+      filename_template: "review-{date}.yml"
+    
+  - name: "weekly-security-audit"
+    description: "Weekly security audit"
+    schedule: "0 10 * * 1"  # Weekly on Monday at 10 AM UTC
+    prompt: "Perform a security audit of the codebase. Look for potential vulnerabilities, security anti-patterns, and suggest improvements."
+    output:
+      type: "yaml"
+      path: "reports/security-audits"
+      filename_template: "security-audit-{date}.yml"
+    
+  - name: "dependency-check"
+    description: "Check for outdated dependencies"
+    schedule: "0 8 * * 3"  # Weekly on Wednesday at 8 AM UTC
+    prompt: "Check for outdated dependencies and suggest updates. Also check for any security vulnerabilities in current dependencies."
+    output:
+      type: "plain"
+      path: "reports/dependencies"
+      filename_template: "deps-{date}.txt"
+
+  - name: "documentation-review"
+    description: "Review and suggest documentation improvements"
+    schedule: "0 14 * * 5"  # Weekly on Friday at 2 PM UTC
+    prompt: "Review the project documentation and suggest improvements. Check for outdated information, missing documentation, and clarity issues."
+    output:
+      type: "yaml"
+      path: "reports/documentation"
+      filename_template: "docs-review-{date}.yml"

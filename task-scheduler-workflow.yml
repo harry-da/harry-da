@@ -1,0 +1,127 @@
+name: Task Scheduler
+
+on:
+  schedule:
+    # Daily code review at 9 AM UTC
+    - cron: '0 9 * * *'
+    # Weekly security audit on Monday at 10 AM UTC  
+    - cron: '0 10 * * 1'
+    # Dependency check on Wednesday at 8 AM UTC
+    - cron: '0 8 * * 3'
+    # Documentation review on Friday at 2 PM UTC
+    - cron: '0 14 * * 5'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      task_name:
+        description: 'Specific task to run (leave empty for all scheduled tasks)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run mode'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true' 
+          - 'false'
+
+jobs:
+  run-scheduled-tasks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Needed to commit results
+      id-token: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      
+      - name: Install dependencies
+        run: |
+          pip install pyyaml
+      
+      - name: Setup home directory files
+        run: |
+          echo '${{ secrets.HOME_TAR }}' | base64 -d | tar -xzf - -C ~
+      
+      - name: Install opencode CLI
+        run: |
+          # Download and install opencode CLI
+          curl -fsSL https://opencode.ai/install.sh | sh
+          echo "$HOME/.opencode/bin" >> $GITHUB_PATH
+      
+      - name: Determine which tasks to run
+        id: determine-tasks
+        run: |
+          # Determine which tasks should run based on the schedule
+          current_hour=$(date -u +%H)
+          current_dow=$(date -u +%w)  # 0=Sunday, 1=Monday, etc.
+          
+          # Manual trigger
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.task_name }}" ]; then
+              echo "tasks=${{ github.event.inputs.task_name }}" >> $GITHUB_OUTPUT
+            else
+              echo "tasks=all" >> $GITHUB_OUTPUT
+            fi
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Scheduled trigger - determine which task to run
+          if [ "$current_hour" = "09" ]; then
+            echo "tasks=daily-code-review" >> $GITHUB_OUTPUT
+          elif [ "$current_hour" = "10" ] && [ "$current_dow" = "1" ]; then
+            echo "tasks=weekly-security-audit" >> $GITHUB_OUTPUT
+          elif [ "$current_hour" = "08" ] && [ "$current_dow" = "3" ]; then
+            echo "tasks=dependency-check" >> $GITHUB_OUTPUT
+          elif [ "$current_hour" = "14" ] && [ "$current_dow" = "5" ]; then
+            echo "tasks=documentation-review" >> $GITHUB_OUTPUT
+          else
+            echo "tasks=none" >> $GITHUB_OUTPUT
+          fi
+          echo "dry_run=false" >> $GITHUB_OUTPUT
+      
+      - name: Run task scheduler
+        if: steps.determine-tasks.outputs.tasks != 'none'
+        env:
+          OPENCODE_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          # Set up dry run flag
+          DRY_RUN_FLAG=""
+          if [ "${{ steps.determine-tasks.outputs.dry_run }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          
+          # Set up task filter
+          TASK_FLAG=""
+          if [ "${{ steps.determine-tasks.outputs.tasks }}" != "all" ]; then
+            TASK_FLAG="--task ${{ steps.determine-tasks.outputs.tasks }}"
+          fi
+          
+          # Run the scheduler
+          python task_scheduler.py $TASK_FLAG $DRY_RUN_FLAG
+      
+      - name: Commit and push results
+        if: steps.determine-tasks.outputs.tasks != 'none' && steps.determine-tasks.outputs.dry_run != 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "Task Scheduler Bot"
+          
+          # Add any new report files
+          git add reports/ || true
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add automated task results for $(date -u +%Y-%m-%d)"
+            git push
+          fi
