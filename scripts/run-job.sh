@@ -13,10 +13,14 @@ fi
 JOB_ID="$1"
 JOB_DIR="jobs/${JOB_ID}"
 AGENT_FILE="${JOB_DIR}/agent.md"
-RESULTS_DIR="${JOB_DIR}/results"
+SPACE_DIR="${JOB_DIR}/space"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-OUTPUT_FILE="${RESULTS_DIR}/result_${TIMESTAMP}.md"
+OUTPUT_FILE="${SPACE_DIR}/result_${TIMESTAMP}.md"
 WORKDIR=$(mktemp -d)
+
+# Store absolute path to output file for use from work directory
+REPO_DIR="$(pwd)"
+OUTPUT_FILE_ABS="${REPO_DIR}/${OUTPUT_FILE}"
 
 # Check if agent file exists
 if [ ! -f "$AGENT_FILE" ]; then
@@ -24,8 +28,8 @@ if [ ! -f "$AGENT_FILE" ]; then
   exit 1
 fi
 
-# Create results directory if it doesn't exist
-mkdir -p "$RESULTS_DIR"
+# Create space directory if it doesn't exist
+mkdir -p "$SPACE_DIR"
 
 echo "============================================"
 echo "Running job: ${JOB_ID}"
@@ -48,11 +52,11 @@ echo "Running: opencode run @${JOB_ID}"
 echo ""
 
 # Run opencode
-if opencode run "@${JOB_ID}" > "${OUTPUT_FILE}" 2>&1; then
+if opencode run "@${JOB_ID}" > "${OUTPUT_FILE_ABS}" 2>&1; then
   echo "OpenCode execution completed successfully"
 else
   echo "OpenCode execution failed"
-  cat "${OUTPUT_FILE}"
+  cat "${OUTPUT_FILE_ABS}"
 fi
 
 # Clean up work directory
@@ -64,6 +68,6 @@ echo "Job completed!"
 echo "Results saved to: $OUTPUT_FILE"
 
 # Keep only the last 10 results to avoid repository bloat
-cd "$RESULTS_DIR"
+cd "$SPACE_DIR"
 ls -t result_*.md 2>/dev/null | tail -n +11 | xargs -r rm --
 echo "Cleaned up old results (keeping last 10)"

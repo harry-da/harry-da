@@ -64,7 +64,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email \
             "github-actions[bot]@users.noreply.github.com"
-          git add jobs/${{ matrix.job-id }}/results/
+          git add jobs/${{ matrix.job-id }}/space/
           TIMESTAMP=$(date -u +%Y-%m-%d)
           git commit -m \
             "Add ${{ matrix.job-id }} results - ${TIMESTAMP}" || \
@@ -97,7 +97,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email \
             "github-actions[bot]@users.noreply.github.com"
-          git add jobs/${{ github.event.inputs.job-id }}/results/
+          git add jobs/${{ github.event.inputs.job-id }}/space/
           TIMESTAMP=$(date -u +%Y-%m-%d)
           git commit -m \
             "Add ${{ github.event.inputs.job-id }} results - ${TIMESTAMP}" \

@@ -1,11 +1,5 @@
 ---
 description: Generate a weekly report summarizing repository activity
-tools:
-  read: true
-  write: false
-  edit: false
-  glob: true
-  grep: true
 ---
 
 You are a repository activity analyst. Create a comprehensive weekly report for the repository harry-da/harry-da.

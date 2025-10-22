@@ -8,13 +8,13 @@ This repository contains automated jobs that run on a schedule using GitHub Acti
 jobs/
 ├── daily-summary/
 │   ├── agent.md          # OpenCode agent definition
-│   └── results/          # Generated results (timestamped)
+│   └── space/            # Job memory space (timestamped results, AGENTS.md, etc.)
 ├── weekly-report/
 │   ├── agent.md
-│   └── results/
+│   └── space/
 └── <job-id>/
     ├── agent.md
-    └── results/
+    └── space/
 ```
 
 ## OpenCode Agent Format
@@ -24,12 +24,6 @@ Each `agent.md` file follows the OpenCode agent format with YAML frontmatter:
 ```markdown
 ---
 description: Brief description of what the agent does
-tools:
-  read: true
-  write: false
-  edit: false
-  glob: true
-  grep: true
 ---
 
 Your system prompt and instructions for the agent go here.
@@ -42,7 +36,8 @@ See [OpenCode Agents Documentation](https://opencode.ai/docs/agents/#markdown) f
 1. **Job Definitions**: Each job is defined in `jobs/<job-id>/agent.md` using OpenCode agent format
 2. **Scheduled Execution**: The `.github/workflows/cron-jobs.yml` workflow runs jobs on a schedule
 3. **OpenCode CLI**: The workflow installs OpenCode CLI and runs each agent
-4. **Results Storage**: Job results are saved to `jobs/<job-id>/results/result_<timestamp>.md`
+4. **Results Storage**: Job results are saved to `jobs/<job-id>/space/result_<timestamp>.md`
+5. **Memory Space**: The `space/` directory serves as cross-run memory for the job, which can include AGENTS.md and other files that can be updated by the job itself
 
 ## Cron Schedule
 
@@ -63,9 +58,6 @@ Jobs are configured in `.github/workflows/cron-jobs.yml`:
    cat > jobs/my-new-job/agent.md << 'EOF'
    ---
    description: Brief description
-   tools:
-     read: true
-     write: false
    ---
    
    Your agent instructions here.
@@ -132,3 +124,4 @@ The workflow uses:
 - Results are stored as markdown files: `result_YYYYMMDD_HHMMSS.md`
 - Only the last 10 results are kept per job to avoid repository bloat
 - Results are automatically committed and pushed by the GitHub Action
+- The `space/` directory can contain additional files like AGENTS.md that the job can update across runs
