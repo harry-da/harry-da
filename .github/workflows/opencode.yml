@@ -13,7 +13,6 @@ jobs:
       startsWith(github.event.comment.body, '/opencode')
     runs-on: ubuntu-latest
     permissions:
-      actions: write
       contents: read
       id-token: write
     steps:
@@ -27,6 +26,6 @@ jobs:
       - name: Run opencode
         uses: sst/opencode/github@latest
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         with:
           model: github-copilot/claude-sonnet-4
