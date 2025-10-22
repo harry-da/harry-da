@@ -1,0 +1,105 @@
+---
+name: Cron Jobs
+
+'on':
+  schedule:
+    # Daily summary at 9:00 AM UTC every day
+    - cron: '0 9 * * *'
+    # Weekly report at 10:00 AM UTC every Monday
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+    inputs:
+      job-id:
+        description: 'Job ID to run (e.g., daily-summary, weekly-report)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  # Run scheduled jobs
+  run-scheduled-job:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - job-id: daily-summary
+            schedule: '0 9 * * *'
+          - job-id: weekly-report
+            schedule: '0 10 * * 1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup home directory files
+        run: |
+          echo '${{ secrets.HOME_TAR }}' | base64 -d | tar -xzf - -C ~
+
+      - name: Check if this job should run
+        id: check
+        run: |
+          if [ "${{ github.event.schedule }}" = "${{ matrix.schedule }}" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install OpenCode
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run job script
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          bash scripts/run-job.sh ${{ matrix.job-id }}
+
+      - name: Commit and push results
+        if: steps.check.outputs.should_run == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email \
+            "github-actions[bot]@users.noreply.github.com"
+          git add jobs/${{ matrix.job-id }}/results/
+          TIMESTAMP=$(date -u +%Y-%m-%d)
+          git commit -m \
+            "Add ${{ matrix.job-id }} results - ${TIMESTAMP}" || \
+            echo "No changes to commit"
+          git push
+
+  # Run manual job
+  run-manual-job:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup home directory files
+        run: |
+          echo '${{ secrets.HOME_TAR }}' | base64 -d | tar -xzf - -C ~
+
+      - name: Install OpenCode
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run job script
+        run: |
+          bash scripts/run-job.sh ${{ github.event.inputs.job-id }}
+
+      - name: Commit and push results
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email \
+            "github-actions[bot]@users.noreply.github.com"
+          git add jobs/${{ github.event.inputs.job-id }}/results/
+          TIMESTAMP=$(date -u +%Y-%m-%d)
+          git commit -m \
+            "Add ${{ github.event.inputs.job-id }} results - ${TIMESTAMP}" \
+            || echo "No changes to commit"
+          git push
