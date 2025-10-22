@@ -48,6 +48,8 @@ Jobs are configured in `.github/workflows/cron-jobs.yml`:
 - **daily-summary**: Runs every day at 9:00 AM UTC (`0 9 * * *`)
 - **weekly-report**: Runs every Monday at 10:00 AM UTC (`0 10 * * 1`)
 
+The workflow uses a matrix strategy to manage multiple scheduled jobs efficiently. When a scheduled event triggers, the workflow checks which job matches the schedule and runs only that one.
+
 ## Adding a New Job
 
 1. Create a new directory under `jobs/` with your job ID:
@@ -68,15 +70,27 @@ Jobs are configured in `.github/workflows/cron-jobs.yml`:
    EOF
    ```
 
-3. Add your job to the matrix in `.github/workflows/cron-jobs.yml`:
+3. Add your job to the matrix in `.github/workflows/cron-jobs.yml` under the `run-scheduled-job` job:
    ```yaml
-   matrix:
-     include:
-       - job-id: my-new-job
-         cron: '0 12 * * *'  # Your cron schedule
+   strategy:
+     matrix:
+       include:
+         - job-id: daily-summary
+           schedule: '0 9 * * *'
+         - job-id: weekly-report
+           schedule: '0 10 * * 1'
+         - job-id: my-new-job
+           schedule: '0 12 * * *'  # Your cron schedule
    ```
 
-4. Update the schedule check logic if adding a new cron time.
+4. Also add the corresponding schedule trigger at the top of the workflow:
+   ```yaml
+   'on':
+     schedule:
+       - cron: '0 9 * * *'
+       - cron: '0 10 * * 1'
+       - cron: '0 12 * * *'  # Your cron schedule
+   ```
 
 ## Manual Execution
 

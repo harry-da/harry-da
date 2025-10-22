@@ -19,68 +19,53 @@ permissions:
   id-token: write
 
 jobs:
-  run-cron-jobs:
+  # Run scheduled jobs
+  run-scheduled-job:
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
           - job-id: daily-summary
-            cron: '0 9 * * *'
+            schedule: '0 9 * * *'
           - job-id: weekly-report
-            cron: '0 10 * * 1'
+            schedule: '0 10 * * 1'
     steps:
+      - name: Check if this job should run
+        id: check
+        run: |
+          if [ "${{ github.event.schedule }}" = "${{ matrix.schedule }}" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout repository
+        if: steps.check.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
       - name: Setup home directory files
+        if: steps.check.outputs.should_run == 'true'
         run: |
           echo '${{ secrets.HOME_TAR }}' | base64 -d | tar -xzf - -C ~
 
-      - name: Check if job should run
-        id: should-run
-        run: |
-          # For scheduled runs, check if this job matches the schedule
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Get current time in UTC
-            HOUR=$(date -u +%H)
-            MINUTE=$(date -u +%M)
-            # 1=Monday, 7=Sunday
-            DAY_OF_WEEK=$(date -u +%u)
-
-            # Check daily-summary (runs at 09:00 daily)
-            if [ "${{ matrix.job-id }}" = "daily-summary" ] && \
-               [ "$HOUR" = "09" ]; then
-              echo "run=true" >> $GITHUB_OUTPUT
-            # Check weekly-report (runs at 10:00 on Mondays)
-            elif [ "${{ matrix.job-id }}" = "weekly-report" ] && \
-                 [ "$HOUR" = "10" ] && [ "$DAY_OF_WEEK" = "1" ]; then
-              echo "run=true" >> $GITHUB_OUTPUT
-            else
-              echo "run=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            # For manual dispatch, always run
-            echo "run=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Run job script
-        if: steps.should-run.outputs.run == 'true'
+        if: steps.check.outputs.should_run == 'true'
         run: |
           bash scripts/run-job.sh ${{ matrix.job-id }}
 
       - name: Extract prompt for opencode
-        if: steps.should-run.outputs.run == 'true'
+        if: steps.check.outputs.should_run == 'true'
         id: extract-prompt
         run: |
           AGENT_FILE="jobs/${{ matrix.job-id }}/agent.md"
           # Extract prompt from agent.md (everything after "## Prompt")
           PROMPT=$(awk '/^## Prompt/,0' "$AGENT_FILE" | tail -n +2)
-          # Save to file for opencode
           echo "$PROMPT" > /tmp/prompt.txt
           echo "Prompt extracted for opencode"
 
       - name: Run opencode agent
-        if: steps.should-run.outputs.run == 'true'
+        if: steps.check.outputs.should_run == 'true'
         uses: sst/opencode/github@latest
         env:
           TOKEN: ${{ secrets.GH_PAT }}
@@ -89,17 +74,19 @@ jobs:
           prompt-file: /tmp/prompt.txt
 
       - name: Commit and push results
-        if: steps.should-run.outputs.run == 'true'
+        if: steps.check.outputs.should_run == 'true'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email \
             "github-actions[bot]@users.noreply.github.com"
           git add jobs/${{ matrix.job-id }}/results/
+          TIMESTAMP=$(date -u +%Y-%m-%d)
           git commit -m \
-            "Add ${{ matrix.job-id }} results - $(date -u +%Y-%m-%d)" || \
+            "Add ${{ matrix.job-id }} results - ${TIMESTAMP}" || \
             echo "No changes to commit"
           git push
 
+  # Run manual job
   run-manual-job:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -123,7 +110,7 @@ jobs:
             echo "Error: Agent file not found at $AGENT_FILE"
             exit 1
           fi
-          # Extract prompt from agent.md
+          # Extract prompt from agent.md (everything after "## Prompt")
           PROMPT=$(awk '/^## Prompt/,0' "$AGENT_FILE" | tail -n +2)
           echo "$PROMPT" > /tmp/prompt.txt
           echo "Prompt extracted for opencode"
