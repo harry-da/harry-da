@@ -1,10 +1,14 @@
 ---
 name: Scheduled Agents
 
+# Define reusable cron schedules using anchors
+x-schedules:
+  daily-summary: &daily-summary '0 9 * * *'
+
 'on':
   schedule:
     # Daily summary at 9:00 AM UTC every day
-    - cron: '0 9 * * *'
+    - cron: *daily-summary
   workflow_dispatch:
     inputs:
       job-id:
@@ -17,15 +21,15 @@ permissions:
   id-token: write
 
 jobs:
-  # Run scheduled jobs
-  run-scheduled-job:
-    if: github.event_name == 'schedule'
+  run-agent:
     runs-on: ubuntu-latest
+    # Only run scheduled jobs on main branch
+    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
     strategy:
       matrix:
         include:
           - job-id: daily-summary
-            schedule: '0 9 * * *'
+            schedule: *daily-summary
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,17 +38,25 @@ jobs:
         run: |
           echo '${{ secrets.HOME_TAR }}' | base64 -d | tar -xzf - -C ~
 
-      - name: Check if this job should run
-        id: check
+      - name: Determine job to run
+        id: job
         run: |
-          if [ "${{ github.event.schedule }}" = "${{ matrix.schedule }}" ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # For scheduled runs, check if this matrix job should run
+            if [ "${{ github.event.schedule }}" = "${{ matrix.schedule }}" ]; then
+              echo "job_id=${{ matrix.job-id }}" >> $GITHUB_OUTPUT
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "should_run=false" >> $GITHUB_OUTPUT
+            # For manual runs, use the input job-id
+            echo "job_id=${{ github.event.inputs.job-id }}" >> $GITHUB_OUTPUT
+            echo "should_run=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Install OpenCode and yq
-        if: steps.check.outputs.should_run == 'true'
+        if: steps.job.outputs.should_run == 'true'
         run: |
           curl -fsSL https://opencode.ai/install | bash
           echo "$HOME/.local/bin" >> $GITHUB_PATH
@@ -53,55 +65,25 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
 
       - name: Run job script
-        if: steps.check.outputs.should_run == 'true'
+        if: steps.job.outputs.should_run == 'true'
         run: |
-          bash scripts/run-agent ${{ matrix.job-id }}
+          bash scripts/run-agent ${{ steps.job.outputs.job_id }}
 
       - name: Commit and push results
-        if: steps.check.outputs.should_run == 'true'
+        if: steps.job.outputs.should_run == 'true'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email \
             "github-actions[bot]@users.noreply.github.com"
-          git add agents/${{ matrix.job-id }}/ --ignore-removal
+          git add agents/${{ steps.job.outputs.job_id }}/ --ignore-removal
           TIMESTAMP=$(date -u +%Y-%m-%d)
           git commit -m \
-            "Add ${{ matrix.job-id }} results - ${TIMESTAMP}" || \
+            "Add ${{ steps.job.outputs.job_id }} results - ${TIMESTAMP}" || \
             echo "No changes to commit"
-          git push
-
-  # Run manual job
-  run-manual-job:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup home directory files
-        run: |
-          echo '${{ secrets.HOME_TAR }}' | base64 -d | tar -xzf - -C ~
-
-      - name: Install OpenCode and yq
-        run: |
-          curl -fsSL https://opencode.ai/install | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          # Install yq for YAML conversion
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-
-      - name: Run job script
-        run: |
-          bash scripts/run-agent ${{ github.event.inputs.job-id }}
-
-      - name: Commit and push results
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email \
-            "github-actions[bot]@users.noreply.github.com"
-          git add agents/${{ github.event.inputs.job-id }}/ --ignore-removal
-          TIMESTAMP=$(date -u +%Y-%m-%d)
-          git commit -m \
-            "Add ${{ github.event.inputs.job-id }} results - ${TIMESTAMP}" \
-            || echo "No changes to commit"
-          git push
+          
+          # For manual runs, push to the selected branch; for scheduled runs, push to main
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            git push
+          fi
