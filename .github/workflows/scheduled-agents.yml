@@ -1,18 +1,16 @@
 ---
 name: Scheduled Agents
 
-# Define reusable cron schedules using anchors
 x-schedules:
-  daily-summary: &daily-summary '0 9 * * *'
+  - &daily-summary "0 9 * * *"
 
-'on':
+"on":
   schedule:
-    # Daily summary at 9:00 AM UTC every day
     - cron: *daily-summary
   workflow_dispatch:
     inputs:
       job-id:
-        description: 'Job ID to run (e.g., daily-summary)'
+        description: "Job ID to run (e.g., daily-summary)"
         required: true
         type: string
 
@@ -80,7 +78,7 @@ jobs:
           git commit -m \
             "Add ${{ steps.job.outputs.job_id }} results - ${TIMESTAMP}" || \
             echo "No changes to commit"
-          
+
           # For manual runs, push to the selected branch; for scheduled runs, push to main
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             git push origin HEAD:${{ github.ref_name }}
