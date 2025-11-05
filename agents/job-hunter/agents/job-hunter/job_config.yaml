@@ -1,0 +1,24 @@
+product_manager_remote_global.csv:
+  level: mid
+  location: Remote (Global)
+  remote: true
+  role: Product Manager
+  website: https://wellfound.com/
+remote_senior_designer_apac_emea.csv:
+  level: senior
+  location: APAC or EMEA timezones
+  remote: true
+  role: Senior Designer
+  website: https://www.dice.com/
+remote_senior_software_engineer_priority_apac_emea.csv:
+  level: senior
+  location: 'Remote (priority: APAC, EMEA)'
+  remote: true
+  role: Senior Software Engineer
+  website: https://wellfound.com/
+senior_software_engineer_australia_singapore.csv:
+  level: senior
+  location: Australia or Singapore
+  remote: false
+  role: Senior Software Engineer
+  website: https://remotive.io/remote-jobs
