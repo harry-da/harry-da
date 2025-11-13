@@ -1,0 +1,34 @@
+senior_software_engineer_australia_singapore.csv:
+  role: "Senior Software Engineer"
+  location: "Australia or Singapore"
+  remote: false
+
+remote_senior_software_engineer_priority_apac_emea.csv:
+  role: "Senior Software Engineer"
+  location: "Remote (priority: APAC, EMEA)"
+  remote: true
+
+remote_senior_designer_apac_emea.csv:
+  role: "Senior Designer"
+  location: "APAC or EMEA timezones"
+  remote: true
+
+software_developer_remote_global.csv:
+  role: "Software Developer"
+  location: "Remote - Global"
+  remote: true
+
+full_stack_engineer_us_canada.csv:
+  role: "Full Stack Engineer"
+  location: "United States or Canada"
+  remote: false
+
+backend_engineer_remote_europe.csv:
+  role: "Backend Engineer"
+  location: "Remote - Europe"
+  remote: true
+
+product_manager_remote_global.csv:
+  role: "Product Manager"
+  location: "Remote - Global"
+  remote: true
