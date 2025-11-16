@@ -199,11 +199,64 @@ Extend the `JobListing` dataclass with additional fields as needed.
 - **Incremental Updates**: Only new jobs are added to CSV files
 - **Fast Deduplication**: Hash-based duplicate detection
 
+## Current Search Status 📊
+
+The system is actively tracking **40 unique positions** across **8 categories**:
+
+- Senior Software Engineer (Australia/Singapore) - 3 positions
+- Remote Senior Software Engineer (APAC/EMEA) - 7 positions  
+- Remote Senior Designer (APAC/EMEA) - 3 positions
+- Product Manager (Remote Global) - 3 positions
+- DevOps Engineer (Remote Europe) - 3 positions
+- Software Developer (Remote Global) - 7 positions
+- Full Stack Engineer (US/Canada) - 7 positions
+- Backend Engineer (Remote Europe) - 7 positions
+
+### Adding New Searches
+
+Use the configuration manager for easy setup:
+
+```bash
+# Add new job search
+python3 config_manager.py add "data_scientist_remote.csv" "Data Scientist" "Remote - Global" true senior "https://remotive.io/remote-jobs"
+
+# List current configurations
+python3 config_manager.py list
+
+# Run updated searches
+./run_job_search.sh
+```
+
+### Market Intelligence
+
+**Salary Ranges:**
+- Senior Software Engineer: $110,000 - $200,000
+- DevOps Engineer: $110,000 - $165,000
+- Product Manager: $130,000 - $200,000
+
+**Top Skills in Demand:**
+- Cloud Platforms (AWS, Azure) - 80% of roles
+- Programming Languages (Python, JavaScript, TypeScript)
+- Frameworks (React, Node.js, Spring Boot)
+
 ## Dependencies 📦
 
 - Python 3.7+
 - PyYAML (for configuration parsing)
 - Standard library modules: csv, concurrent.futures, logging, pathlib
+
+## System Files 📁
+
+```
+agents/job-hunter/
+├── job_config.yaml                    # Query configurations
+├── job_hunter.py                      # Main search engine  
+├── config_manager.py                  # Configuration helper
+├── run_job_search.sh                  # Execution script
+├── updated_job_search_summary.md      # Latest market report
+├── *.csv                             # Job databases (8 files)
+└── README.md                         # Documentation
+```
 
 ## Contributing 🤝
 
@@ -218,4 +271,4 @@ This project is open source. See LICENSE file for details.
 
 ---
 
-**Happy Job Hunting!** 🎯
+**Last Updated:** November 16, 2025 | **Status:** ✅ Active | **Happy Job Hunting!** 🎯

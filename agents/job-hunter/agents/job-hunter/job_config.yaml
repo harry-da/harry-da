@@ -1,3 +1,9 @@
+devops_engineer_remote_europe.csv:
+  level: senior
+  location: Remote - Europe
+  remote: true
+  role: DevOps Engineer
+  website: https://remotive.io/remote-jobs
 product_manager_remote_global.csv:
   level: mid
   location: Remote (Global)
