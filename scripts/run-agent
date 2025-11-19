@@ -11,16 +11,16 @@ if [ -z "$1" ]; then
 fi
 
 JOB_ID="$1"
-AGENT_DIR="agents/${JOB_ID}"
-LOGS_DIR="${AGENT_DIR}/logs"
-AGENT_FILE="${AGENT_DIR}/agent.md"
+AGENT_DIR="agents/$JOB_ID"
+LOGS_DIR="$AGENT_DIR/logs"
+AGENT_FILE="$AGENT_DIR/agent.md"
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-OUTPUT_FILE="${LOGS_DIR}/${TIMESTAMP}.yml"
+OUTPUT_FILE="$LOGS_DIR/$TIMESTAMP.yml"
 WORKDIR=$(mktemp -d)
 
 # Store absolute path to output file for use from work directory
 REPO_DIR="$(pwd)"
-OUTPUT_FILE_ABS="${REPO_DIR}/${OUTPUT_FILE}"
+OUTPUT_FILE_ABS="$REPO_DIR/$OUTPUT_FILE"
 
 # Check if agent file exists
 if [ ! -f "$AGENT_FILE" ]; then
@@ -28,109 +28,60 @@ if [ ! -f "$AGENT_FILE" ]; then
   exit 1
 fi
 
-# Create agent and logs directories if they don't exist
-mkdir -p "$AGENT_DIR" "$LOGS_DIR"
+mkdir -p $AGENT_DIR $LOGS_DIR
 
 echo "============================================"
-echo "Running agent: ${JOB_ID}"
-echo "Agent file: ${AGENT_FILE}"
+echo "Running agent: $JOB_ID"
+echo "Agent file: $AGENT_FILE"
 echo "Output file: $OUTPUT_FILE"
 echo "Work directory: $WORKDIR"
 echo "============================================"
-echo ""
 
-# Copy agent file to opencode agent directory
 mkdir -p ~/.config/opencode/agent
-cp "$AGENT_FILE" ~/.config/opencode/agent/"${JOB_ID}.md"
+cp $AGENT_FILE ~/.config/opencode/agent/$JOB_ID.md
+trap 'rm -f ~/.config/opencode/agent/$JOB_ID.md' EXIT
+echo "Copied agent to ~/.config/opencode/agent/$JOB_ID.md"
 
-echo "Copied agent to ~/.config/opencode/agent/${JOB_ID}.md"
-echo ""
-
-# STEP 1: Copy existing agent assets to work directory
-echo "Copying existing agent assets to work directory..."
-# Copy all files from agent directory except agent.md (we'll handle it separately)
-find "$AGENT_DIR" -mindepth 1 -maxdepth 1 -not -name "agent.md" -not -name "logs" | while read file; do
-    cp -r "$file" "$WORKDIR/" 2>/dev/null || true
-done
-# Copy agent.md
-cp "$AGENT_FILE" "$WORKDIR/"
+cp -r $AGENT_DIR/* $WORKDIR
 echo "Assets copied to: $WORKDIR"
-echo ""
-
-# Change to work directory and run opencode
 cd "$WORKDIR"
-echo "Running: opencode run @${JOB_ID} --model github-copilot/claude-sonnet-4 --format json"
-echo ""
 
-# Run opencode and convert JSON lines to YAML
 TEMP_JSON=$(mktemp)
-if opencode run "@${JOB_ID}" --model github-copilot/claude-sonnet-4 --format json > "${TEMP_JSON}" 2>&1; then
+if opencode run "run @$JOB_ID" --model github-copilot/claude-sonnet-4 --format json > "$TEMP_JSON" 2>&1; then
   echo "OpenCode execution completed successfully"
   # Convert line-delimited JSON to YAML if yq is available, otherwise keep as JSON
   if command -v yq >/dev/null 2>&1; then
-    echo "Converting JSON lines to YAML..."
-    # Process each line as a separate JSON object and convert to YAML
     {
-      first=true
       while IFS= read -r line; do
         if [ -n "$line" ]; then
           # Filter out all sessionID fields recursively and other unnecessary IDs
           filtered_json=$(echo "$line" | yq eval '
-            del(.sessionID) | 
-            del(.part.sessionID) | 
+            del(.sessionID) |
+            del(.part.sessionID) |
             del(.part.id) |
             del(.text.sessionID) |
             del(.metadata.summary[]?.sessionID) |
             del(.metadata.summary[]?.id)
           ')
-          if [ "$first" = true ]; then
-            echo "- $(echo "$filtered_json" | yq eval -P '.' | sed '1s/^//' | sed '2,\$s/^/  /')"
-            first=false
-          else
-            echo "- $(echo "$filtered_json" | yq eval -P '.' | sed '1s/^//' | sed '2,\$s/^/  /')"
-          fi
+
+          echo "- $(echo "$filtered_json" | yq eval -P '.' | sed '1s/^//' | sed '2,$s/^/  /')"
         fi
-      done < "${TEMP_JSON}"
-    } > "${OUTPUT_FILE_ABS}"
+      done < "$TEMP_JSON"
+    } > "$OUTPUT_FILE_ABS"
   else
     echo "yq not found, keeping JSON format..."
-    cp "${TEMP_JSON}" "${OUTPUT_FILE_ABS}"
+    cp "$TEMP_JSON" "$OUTPUT_FILE_ABS"
   fi
 else
   echo "OpenCode execution failed"
-  cp "${TEMP_JSON}" "${OUTPUT_FILE_ABS}"
-  cat "${OUTPUT_FILE_ABS}"
+  cp "$TEMP_JSON" "$OUTPUT_FILE_ABS"
+  cat "$OUTPUT_FILE_ABS"
 fi
-rm -f "${TEMP_JSON}"
+rm -f "$TEMP_JSON"
 
-# STEP 2: Copy any new files created by the agent back to the agent directory
-echo ""
-echo "Copying new files back to agent directory..."
-# Find all files and directories created by the agent (excluding agent.md and temp files)
-find "$WORKDIR" -mindepth 1 -maxdepth 1 | while read file; do
-    basename_file=$(basename "$file")
-    # Skip agent.md (it's already in the right place) and skip any temp/system files
-    if [[ "$basename_file" != "agent.md" && "$basename_file" != "logs" && ! "$basename_file" =~ ^tmp ]]; then
-        echo "Copying: $basename_file"
-        if [ -d "$file" ]; then
-            # Handle directories - merge if exists, otherwise copy
-            if [ -d "$REPO_DIR/$AGENT_DIR/$basename_file" ]; then
-                cp -r "$file"/* "$REPO_DIR/$AGENT_DIR/$basename_file/" 2>/dev/null || true
-            else
-                cp -r "$file" "$REPO_DIR/$AGENT_DIR/"
-            fi
-        else
-            # Handle files - overwrite if exists
-            cp "$file" "$REPO_DIR/$AGENT_DIR/"
-        fi
-    fi
-done
+echo "Moving assets back to agent directory..."
+mv $WORKDIR/* $REPO_DIR/$AGENT_DIR
 
-# Clean up work directory
-cd -
-rm -rf "$WORKDIR"
-
-echo ""
 echo "Agent completed!"
 echo "Results saved to: $OUTPUT_FILE"
 
