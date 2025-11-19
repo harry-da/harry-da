@@ -64,16 +64,59 @@ echo ""
 
 # Run opencode and convert JSON lines to YAML
 TEMP_JSON=$(mktemp)
-if opencode run "@${JOB_ID}" --model github-copilot/claude-sonnet-4 --format json > "${TEMP_JSON}" 2>&1; then
+TEMP_STDERR=$(mktemp)
+RAW_OUTPUT="${LOGS_DIR}/${TIMESTAMP}.raw.log"
+
+# Capture both stdout and stderr separately
+if opencode run "@${JOB_ID}" --model github-copilot/claude-sonnet-4 --format json > "${TEMP_JSON}" 2> "${TEMP_STDERR}"; then
+  EXIT_CODE=0
+else
+  EXIT_CODE=$?
+fi
+
+# Always save the raw output for debugging
+echo "Saving raw output to: ${RAW_OUTPUT}"
+{
+  echo "=== OpenCode Execution Log ==="
+  echo "Timestamp: ${TIMESTAMP}"
+  echo "Agent: ${JOB_ID}"
+  echo "Exit Code: ${EXIT_CODE}"
+  echo ""
+  echo "=== STDERR ==="
+  cat "${TEMP_STDERR}"
+  echo ""
+  echo "=== STDOUT (Raw JSON) ==="
+  cat "${TEMP_JSON}"
+  echo ""
+  echo "=== Line Count ==="
+  echo "Total lines: $(wc -l < "${TEMP_JSON}")"
+  echo "Non-empty lines: $(grep -c . "${TEMP_JSON}" || echo "0")"
+} > "${OUTPUT_FILE_ABS}.raw"
+
+if [ ${EXIT_CODE} -eq 0 ]; then
   echo "OpenCode execution completed successfully"
+  
+  # Check if we have any output
+  LINE_COUNT=$(wc -l < "${TEMP_JSON}")
+  NON_EMPTY_LINES=$(grep -c . "${TEMP_JSON}" || echo "0")
+  echo "Output: ${NON_EMPTY_LINES} non-empty lines out of ${LINE_COUNT} total"
+  
   # Convert line-delimited JSON to YAML if yq is available, otherwise keep as JSON
   if command -v yq >/dev/null 2>&1; then
     echo "Converting JSON lines to YAML..."
     # Process each line as a separate JSON object and convert to YAML
     {
+      echo "# OpenCode Agent Execution Log"
+      echo "# Timestamp: ${TIMESTAMP}"
+      echo "# Agent: ${JOB_ID}"
+      echo "# Exit Code: ${EXIT_CODE}"
+      echo "# Lines processed: ${NON_EMPTY_LINES}"
+      echo ""
       first=true
+      line_num=0
       while IFS= read -r line; do
         if [ -n "$line" ]; then
+          line_num=$((line_num + 1))
           # Filter out all sessionID fields recursively and other unnecessary IDs
           filtered_json=$(echo "$line" | yq eval '
             del(.sessionID) | 
@@ -82,26 +125,44 @@ if opencode run "@${JOB_ID}" --model github-copilot/claude-sonnet-4 --format jso
             del(.text.sessionID) |
             del(.metadata.summary[]?.sessionID) |
             del(.metadata.summary[]?.id)
-          ')
+          ' 2>/dev/null || echo "$line")
+          
           if [ "$first" = true ]; then
-            echo "- $(echo "$filtered_json" | yq eval -P '.' | sed '1s/^//' | sed '2,\$s/^/  /')"
+            echo "- $(echo "$filtered_json" | yq eval -P '.' 2>/dev/null | sed '1s/^//' | sed '2,\$s/^/  /' || echo "$filtered_json")"
             first=false
           else
-            echo "- $(echo "$filtered_json" | yq eval -P '.' | sed '1s/^//' | sed '2,\$s/^/  /')"
+            echo "- $(echo "$filtered_json" | yq eval -P '.' 2>/dev/null | sed '1s/^//' | sed '2,\$s/^/  /' || echo "$filtered_json")"
           fi
         fi
       done < "${TEMP_JSON}"
+      
+      if [ "$line_num" -eq 0 ]; then
+        echo "# WARNING: No output lines were processed"
+        echo "# Check ${TIMESTAMP}.raw.log for raw output"
+      fi
     } > "${OUTPUT_FILE_ABS}"
   else
     echo "yq not found, keeping JSON format..."
     cp "${TEMP_JSON}" "${OUTPUT_FILE_ABS}"
   fi
 else
-  echo "OpenCode execution failed"
-  cp "${TEMP_JSON}" "${OUTPUT_FILE_ABS}"
+  echo "OpenCode execution failed with exit code: ${EXIT_CODE}"
+  {
+    echo "# OpenCode Agent Execution FAILED"
+    echo "# Timestamp: ${TIMESTAMP}"
+    echo "# Agent: ${JOB_ID}"
+    echo "# Exit Code: ${EXIT_CODE}"
+    echo ""
+    echo "# Error Output:"
+    cat "${TEMP_STDERR}"
+    echo ""
+    echo "# Standard Output:"
+    cat "${TEMP_JSON}"
+  } > "${OUTPUT_FILE_ABS}"
   cat "${OUTPUT_FILE_ABS}"
 fi
-rm -f "${TEMP_JSON}"
+
+rm -f "${TEMP_JSON}" "${TEMP_STDERR}"
 
 # STEP 2: Copy any new files created by the agent back to the agent directory
 echo ""
@@ -137,4 +198,6 @@ echo "Results saved to: $OUTPUT_FILE"
 # Keep only the last 10 logs to avoid repository bloat
 cd "$LOGS_DIR"
 ls -t *.yml 2>/dev/null | tail -n +11 | xargs -r rm --
-echo "Cleaned up old logs (keeping last 10)"
+# Also clean up old raw logs, keeping last 10
+ls -t *.raw.log 2>/dev/null | tail -n +11 | xargs -r rm --
+echo "Cleaned up old logs (keeping last 10 of each type)"

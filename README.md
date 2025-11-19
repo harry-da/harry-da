@@ -36,8 +36,27 @@ See [OpenCode Agents Documentation](https://opencode.ai/docs/agents/#markdown) f
 1. **Agent Definitions**: Each agent is defined in `agents/<agent-id>/agent.md` using OpenCode agent format
 2. **Scheduled Execution**: The `.github/workflows/scheduled-agents.yml` workflow runs agents on a schedule
 3. **OpenCode CLI**: The workflow installs OpenCode CLI and runs each agent
-4. **Results Storage**: Agent results are saved to `agents/<agent-id>/logs/<timestamp>.log` in YAML format
+4. **Results Storage**: Agent results are saved to `agents/<agent-id>/logs/<timestamp>.yml` in YAML format
 5. **Execution Logs**: The `logs/` directory contains timestamped execution logs in YAML format
+6. **Debug Logs**: Raw execution output is saved to `agents/<agent-id>/logs/<timestamp>.raw.log` for debugging
+
+## Log Files
+
+Each agent execution creates two log files:
+
+- **`<timestamp>.yml`**: Processed YAML output with filtered fields (sessionID, internal IDs removed)
+  - Contains agent execution messages, progress, and results in structured YAML format
+  - Includes metadata like timestamp, agent ID, exit code, and line counts
+  - Empty or minimal logs indicate no agent output was generated
+
+- **`<timestamp>.raw.log`**: Complete raw execution log for debugging
+  - Contains exit code and execution metadata
+  - Includes all stderr output (errors, warnings, debug messages)
+  - Includes all stdout output (raw JSON from OpenCode)
+  - Shows line counts to verify output was generated
+  - Use this file to debug when the processed YAML log is empty or unexpected
+
+Only the last 10 logs of each type are retained to avoid repository bloat.
 
 ## Cron Schedule
 
