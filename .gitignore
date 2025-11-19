@@ -1,4 +1,5 @@
 *.log
+!agents/*/logs/*.raw.log
 
 .DS_Store
 .DS_Store?
